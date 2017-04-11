@@ -5,23 +5,89 @@
     <title>Main page</title>
 </head>
 <body>
+<div id="signDiv">
+    Username: <input id="signDiv-username" type="text">
+    Password: <input id="signDiv-password" type="password">
+    <button id="signDiv-signIn">Sign In</button>
+    <button id="signDiv-signUp">Sign Up</button>
+</div>
+<div id="gameDiv" style="display: none;">
+    <!--create the canvas-->
+    <canvas id="ctx" width="600" height="600" style="border: 1px solid #000000;"></canvas>
+    <div id="chat-text" style="width: 500px;height: 100px;overflow-y:scroll">
+        <div>Welcome ☺</div>
+    </div>
+    <form id="chat-form">
+        <input id="chat-input" type="text" style="width: 500px;">
+    </form>
+</div>
 </body>
-<!--create the canvas-->
-<canvas id="ctx" width="600" height="600" style="border: 1px solid #000000;"></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.7.3/socket.io.js"></script>
 <script>
+    var socket = io();
+//   sign
+    var signDiv = document.getElementById('signDiv');
+    var signDivUsername = document.getElementById('signDiv-username');
+    var signDivSignIn = document.getElementById('signDiv-signIn');
+    var signDivSignUp = document.getElementById("signDiv-signUp");
+    var signDivPassword = document.getElementById("signDiv-password");
 
+    signDivSignIn.onclick = function(){
+      socket.emit('signIn',{username:signDivUsername.value, password:signDivPassword.value});
+    };
+    signDivSignUp.onclick = function(){
+        socket.emit('signUp',{username:signDivUsername.value, password:signDivPassword.value});
+    };
+    socket.on('signInResponse',function(data){
+        if(data.success){
+            signDiv.style.display = 'none';
+            gameDiv.style.display = 'inline-block';
+        }else{
+            alert("Sign in unsuccessful.");
+        }
+    });
+    socket.on('signUpResponse',function(data){
+        if(data.success){
+            alert("Sign up successful.");
+        }else{
+            alert("Sign in unsuccessful.");
+        }
+    });
+
+//    game
+    var chatText = document.getElementById('chat-text');
+    var chatInput = document.getElementById('chat-input');
+    var chatForm = document.getElementById('chat-form');
     var ctx = document.getElementById("ctx").getContext("2d");
     ctx.font = '30px Arial';
-    var socket = io();
+
 //    when get the newPosition
     socket.on('newPositions', function(data){
-        ctx.clearRect(0,0,500,500);
-        for(var i = 0; i < data.length; i++){
-            ctx.fillText(data[i].number,data[i].x,data[i].y);
-        }
+        ctx.clearRect(0,0,600,600);
+        for(var i = 0; i < data.player.length; i++)
+            ctx.fillText(data.player[i].number,data.player[i].x,data.player[i].y);
+
+        for(var i = 0; i < data.bullet.length; i++)
+            ctx.fillRect(data.bullet[i].x-5,data.bullet[i].y-5,10,10);
 
     });
+
+    socket.on('addToChat',function(data){
+        chatText.innerHTML += '<div>' + data + '</div>';
+    });
+
+    socket.on('evalAnswer',function(data){
+        console.log(data);
+    });
+
+    chatForm.onsubmit = function(e){
+        e.preventDefault();
+        if(chatInput.value[0] === '/')
+            socket.emit('evalServer',chatInput.value.slice(1));
+        else
+            socket.emit('sendMsgToServer',chatInput.value);
+        chatInput.value='';
+    };
 
     document.onkeydown = function(event){
         if(event.keyCode === 68)//d
@@ -43,5 +109,19 @@
         else if(event.keyCode === 87)//w
             socket.emit('keyPress',{inputId:'up',state:false})
     };
+
+    document.onmousedown = function(event){
+        socket.emit('keyPress',{inputId:'attack',state:true});
+    };
+    document.onmouseup = function(event){
+        socket.emit('keyPress',{inputId:'attack',state:false});
+    };
+    document.onmousemove = function(event){
+        var x = -250 + event.clientX - 8;
+        var y = -250 + event.clientY - 8;
+        var angle = Math.atan2(y,x) / Math.PI * 180;
+        socket.emit('keyPress',{inputId:'mouseAngle',state:angle});
+    };
+
 </script>
 </html>
